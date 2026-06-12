@@ -13,8 +13,8 @@ Delta integrates with your git workflow as a pre-commit hook, running only tests
 - **✨ New Test Detection**: Always runs newly added tests
 - **🧠 Auto-Discovery**: Detects unmapped tests and builds mapping automatically
 - **🎣 Pre-commit Hook**: Automatic integration with git workflow
-- **🔧 Status Check**: Instantly inspect database mapping stats (both local and cloud)
-- **☁️ Delta Cloud Sync**: Share test mappings across CI/CD and teams automatically
+- **🔧 Status Check**: Instantly inspect database mapping stats (both local and cloud via [deltatest.dev](https://deltatest.dev))
+- **☁️ Delta Cloud Sync**: Share test mappings across CI/CD and teams automatically (Powered by [deltatest.dev](https://deltatest.dev))
 
 ## ⚡ Quick Start (Pre-Commit Hook)
 
@@ -183,7 +183,7 @@ delta run -- -x --pdb
 
 ### Check Mapping Status
 
-You can inspect the status and statistics of the local mapping database and the remote mapping service:
+You can inspect the status and statistics of the local mapping database and the remote mapping service ([deltatest.dev](https://deltatest.dev)):
 
 ```bash
 delta status
@@ -200,7 +200,7 @@ delta run [OPTIONS] [-- PYTEST_ARGS]
 
 Options:
   --repo-root PATH        Repository root (default: current directory)
-  --local, --no-remote    Run locally without connecting to remote mapping service
+  --local, --no-remote    Run locally without connecting to the deltatest.dev remote mapping service
   --base-branch BRANCH    Branch to compare against (default: master)
   --coverage-file PATH    Path to .coverage file
   --dry-run              Show tests without running
@@ -218,7 +218,7 @@ delta build-mapping [OPTIONS]
 
 Options:
   --repo-root PATH        Repository root (default: current directory)
-  --local, --no-remote    Build mapping database locally without remote connection
+  --local, --no-remote    Build mapping database locally without remote deltatest.dev connection
   --mapping-db PATH       Path to mapping database
   --test-dir PATH         Directory containing tests
   -v, --verbose          Detailed output
@@ -226,7 +226,7 @@ Options:
 
 ### `delta status`
 
-Show local and remote database status and statistics.
+Show local and remote (deltatest.dev) database status and statistics.
 
 ```bash
 delta status [OPTIONS]
