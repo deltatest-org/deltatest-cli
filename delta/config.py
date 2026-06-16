@@ -34,25 +34,42 @@ class Config:
 
     @classmethod
     def load(cls) -> "Config":
-        """Load config from ~/.delta/config.toml. Returns empty config if not found."""
-        if not CONFIG_FILE.exists():
-            return cls()
+        """Load config from env variables and fallback to ~/.delta/config.toml."""
+        env_api_key = os.environ.get("DELTA_API_KEY")
+        env_repo_id = os.environ.get("DELTA_REPO_ID")
+        env_api_url = os.environ.get("DELTA_API_URL")
+        env_branch = os.environ.get("DELTA_BRANCH")
+        env_test_dir = os.environ.get("DELTA_TEST_DIR")
 
-        # Manual TOML parser (minimal, avoids requiring tomllib/tomli on older Python)
-        if tomllib:
-            with open(CONFIG_FILE, "rb") as f:
-                data = tomllib.load(f)
-        else:
-            data = _parse_simple_toml(CONFIG_FILE)
+        data = {}
+        if CONFIG_FILE.exists():
+            if tomllib:
+                try:
+                    with open(CONFIG_FILE, "rb") as f:
+                        data = tomllib.load(f)
+                except Exception:
+                    pass
+            else:
+                try:
+                    data = _parse_simple_toml(CONFIG_FILE)
+                except Exception:
+                    pass
 
         cloud_data = data.get("cloud", {})
-        if cloud_data.get("api_key"):
+
+        api_key = env_api_key or cloud_data.get("api_key")
+        repo_id = env_repo_id or cloud_data.get("repo_id")
+        api_url = env_api_url or cloud_data.get("api_url") or "https://api.deltatest.dev"
+        branch = env_branch or cloud_data.get("branch") or "main"
+        test_dir = env_test_dir or cloud_data.get("test_dir") or "tests"
+
+        if api_key:
             cloud = CloudConfig(
-                api_key=cloud_data["api_key"],
-                api_url=cloud_data.get("api_url", "https://api.deltatest.dev"),
-                repo_id=cloud_data.get("repo_id"),
-                branch=cloud_data.get("branch", "main"),
-                test_dir=cloud_data.get("test_dir", "tests"),
+                api_key=api_key,
+                api_url=api_url,
+                repo_id=repo_id,
+                branch=branch,
+                test_dir=test_dir,
             )
         else:
             cloud = None
