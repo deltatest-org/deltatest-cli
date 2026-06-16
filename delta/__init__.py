@@ -1,6 +1,6 @@
 """Delta - Run only tests affected by code changes."""
 
-__version__ = "0.4.28"
+__version__ = "0.4.29"
 __author__ = "Delta Contributors"
 __description__ = "Intelligently select and run only tests affected by code changes"
 

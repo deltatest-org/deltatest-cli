@@ -230,16 +230,13 @@ class DeltaRunner:
             return final_returncode
         else:
             print(f"Running {len(test_selection)} selected test(s)...")
-            if len(test_list) > chunk_size:
-                import json
-                delta_dir = self.repo_root / ".delta"
-                delta_dir.mkdir(parents=True, exist_ok=True)
-                select_file = delta_dir / "xdist_select.json"
-                with open(select_file, "w") as f:
-                    json.dump(test_list, f)
-                cmd = base_cmd + ["--delta-select-file", str(select_file)]
-            else:
-                cmd = base_cmd + test_list
+            import json
+            delta_dir = self.repo_root / ".delta"
+            delta_dir.mkdir(parents=True, exist_ok=True)
+            select_file = delta_dir / "xdist_select.json"
+            with open(select_file, "w") as f:
+                json.dump(test_list, f)
+            cmd = base_cmd + ["--delta-select-file", str(select_file)]
             result = subprocess.run(cmd, cwd=self.repo_root)
             return result.returncode
 

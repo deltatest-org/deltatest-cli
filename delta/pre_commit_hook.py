@@ -503,17 +503,13 @@ def run_test_chunk_with_mapping_update(
     ]
     if pytest_args:
         cmd.extend(pytest_args)
-    
-    if len(normalized_tests) > 1000:
-        import json
-        delta_dir = repo_root / ".delta"
-        delta_dir.mkdir(parents=True, exist_ok=True)
-        select_file = delta_dir / "xdist_select.json"
-        with open(select_file, "w") as f:
-            json.dump(normalized_tests, f)
-        cmd.extend(["--delta-select-file", str(select_file)])
-    else:
-        cmd.extend(normalized_tests)
+    import json
+    delta_dir = repo_root / ".delta"
+    delta_dir.mkdir(parents=True, exist_ok=True)
+    select_file = delta_dir / "xdist_select.json"
+    with open(select_file, "w") as f:
+        json.dump(normalized_tests, f)
+    cmd.extend(["--delta-select-file", str(select_file)])
     
     result = subprocess.run(
         cmd,
@@ -1129,17 +1125,13 @@ def run_tests_with_coverage(
         cmd.extend(pytest_args)
     
     # Add test files and node IDs
-    all_tests = sorted(test_files) + sorted(test_node_ids)
-    if len(all_tests) > 1000:
-        import json
-        delta_dir = repo_root / ".delta"
-        delta_dir.mkdir(parents=True, exist_ok=True)
-        select_file = delta_dir / "xdist_select.json"
-        with open(select_file, "w") as f:
-            json.dump(all_tests, f)
-        cmd.extend(["--delta-select-file", str(select_file)])
-    else:
-        cmd.extend(all_tests)
+    import json
+    delta_dir = repo_root / ".delta"
+    delta_dir.mkdir(parents=True, exist_ok=True)
+    select_file = delta_dir / "xdist_select.json"
+    with open(select_file, "w") as f:
+        json.dump(all_tests, f)
+    cmd.extend(["--delta-select-file", str(select_file)])
     
     if verbose:
         print(f"\nRunning command: {' '.join(cmd)}")
