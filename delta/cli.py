@@ -222,9 +222,10 @@ class DeltaRunner:
                     update_mapping(self.repo_root, mapping_db=self.mapping_db.db_path, verbose=verbose, incremental=True)
 
                 if result.returncode != 0:
-                    if final_returncode == 0:
-                        final_returncode = result.returncode
-                    if fail_fast:
+                    ret_code = 0 if result.returncode == 5 else result.returncode
+                    if final_returncode == 0 and ret_code != 0:
+                        final_returncode = ret_code
+                    if fail_fast and ret_code != 0:
                         print(f"\nFail-fast enabled (-x / --maxfail). Aborting remaining {total_chunks - chunk_num} chunk(s).", file=sys.stderr)
                         break
             return final_returncode
@@ -238,6 +239,11 @@ class DeltaRunner:
                 json.dump(test_list, f)
             cmd = base_cmd + ["--delta-select-file", str(select_file)]
             result = subprocess.run(cmd, cwd=self.repo_root)
+            # Pytest exit code 5 means no tests were collected.
+            # We map this to 0 (success) because it is a valid outcome when filtering.
+            if result.returncode == 5:
+                print("No tests were collected by pytest (all deselected or skipped).")
+                return 0
             return result.returncode
 
 
