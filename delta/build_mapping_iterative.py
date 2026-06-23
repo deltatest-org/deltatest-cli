@@ -151,7 +151,7 @@ def run_test_chunk_with_mapping(
         
         if import_source:
             with TestMappingDBV2(mapping_db_path) as db:
-                db.import_from_coverage(import_source, incremental=True)
+                db.import_from_coverage(import_source, incremental=True, repo_root=repo_root)
         else:
             if verbose:
                 print(f"    No valid coverage file found")
@@ -165,7 +165,7 @@ def run_test_chunk_with_mapping(
 def build_mapping_iteratively(
     repo_root: Path,
     mapping_db: Path,
-    test_dir: str = "unit_tests",
+    test_dir: str = "tests",
     verbose: bool = False,
     pytest_args: list = None,
     no_remote: bool = False

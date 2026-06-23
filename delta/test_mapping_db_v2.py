@@ -152,17 +152,18 @@ class TestMappingDBV2:
         except sqlite3.Error:
             return False
     
-    def import_from_coverage(self, coverage_file: Path, incremental: bool = False):
+    def import_from_coverage(self, coverage_file: Path, incremental: bool = False, repo_root: Optional[Path] = None):
         """
         Import test mappings from pytest .coverage file.
         
         Args:
             coverage_file: Path to .coverage SQLite file
             incremental: If True, merge with existing mappings
+            repo_root: Repository root directory (used to locate .delta/skipped_tests.json)
         """
         from .coverage_mapper import CoverageMapper
         
-        mapper = CoverageMapper(coverage_file)
+        mapper = CoverageMapper(coverage_file, repo_root=repo_root)
         mapper.load_coverage()
         
         cursor = self.conn.cursor()
@@ -239,7 +240,9 @@ class TestMappingDBV2:
         """, (str(len(mapper.coverage_data)),))
         
         # Import skipped tests if they exist
-        skipped_file = coverage_file.parent / ".delta" / "skipped_tests.json"
+        # Use repo_root if provided, otherwise fall back to coverage_file.parent (may be wrong for subdir coverage files)
+        skipped_base = repo_root if repo_root else coverage_file.parent
+        skipped_file = skipped_base / ".delta" / "skipped_tests.json"
         if skipped_file.exists():
             import json
             try:

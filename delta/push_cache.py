@@ -29,10 +29,15 @@ class PushCache:
                     PRIMARY KEY (branch, test_name, file_path)
                 )
             """)
-            try:
-                conn.execute("ALTER TABLE push_cache ADD COLUMN duration_ms INTEGER DEFAULT 0")
-            except sqlite3.OperationalError:
-                pass
+            # Schema migration: add duration_ms column if it doesn't exist
+            # Check column existence first to avoid swallowing real OperationalErrors
+            cursor = conn.execute("PRAGMA table_info(push_cache)")
+            columns = {row[1] for row in cursor.fetchall()}
+            if "duration_ms" not in columns:
+                try:
+                    conn.execute("ALTER TABLE push_cache ADD COLUMN duration_ms INTEGER DEFAULT 0")
+                except sqlite3.OperationalError:
+                    pass  # Race condition: column was added by another process
             conn.execute("CREATE INDEX IF NOT EXISTS idx_push_cache_lookup ON push_cache(branch)")
 
     def get_cached_state(self, branch: str) -> Dict[Tuple[str, str], Tuple[str, int]]:

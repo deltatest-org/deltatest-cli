@@ -41,8 +41,8 @@ class DeltaRunner:
         Returns:
             Set of test identifiers (pytest format)
         """
-        # Get git diff
-        diff_output = self.git_parser.get_diff(base_branch)
+        # Get git diff and merge base
+        diff_output, merge_base = self.git_parser.get_diff(base_branch)
         
         changes = self.git_parser.parse_diff(diff_output)
         python_changes = self.git_parser.filter_python_files(changes)
@@ -75,10 +75,11 @@ class DeltaRunner:
                 ]
                 
                 if formatted_changes:
-                    # Pass base_branch as the target branch for mapping lookup
+                    # Pass base_branch as the target branch for mapping lookup and merge_base as the exact commit
                     affected_tests, unmapped = self.mapping_db.find_tests_for_changes(
                         formatted_changes, 
-                        branch=base_branch
+                        branch=base_branch,
+                        commit_sha=merge_base
                     )
                     if getattr(self.mapping_db, 'explanation', None):
                         for test_name, entries in self.mapping_db.explanation.items():
@@ -266,32 +267,66 @@ def cmd_run(args):
             print(f"Mapping Service: Delta Cloud (repo {cfg.cloud.repo_id[:8]}...)", file=sys.stderr)
         mapping_db_obj = CloudMappingDB(cfg.cloud)
     else:
-        # 2. Try Local V2 Mapping DB
-        mapping_db = args.mapping_db if hasattr(args, 'mapping_db') else None
+        mapping_db = args.mapping_db if hasattr(args, 'mapping_db') and args.mapping_db else None
         if not mapping_db:
-            mapping_db = repo_root / ".delta" / "test_mapping.db"
-            legacy_db = repo_root / ".test_mapping.db"
-            if not mapping_db.exists() and legacy_db.exists():
-                mapping_db.parent.mkdir(parents=True, exist_ok=True)
+            # Auto-detect base_branch BEFORE constructing DB path
+            base_branch = getattr(args, 'base_branch', 'master')
+            if base_branch == "master":
+                if cfg.is_cloud_enabled and getattr(cfg.cloud, "branch", None):
+                    base_branch = cfg.cloud.branch
+                else:
+                    try:
+                        res = subprocess.run(
+                            ["git", "rev-parse", "--verify", "--quiet", "refs/heads/master"],
+                            cwd=repo_root, capture_output=True, text=True
+                        )
+                        if res.returncode != 0:
+                            res = subprocess.run(
+                                ["git", "rev-parse", "--verify", "--quiet", "refs/heads/main"],
+                                cwd=repo_root, capture_output=True, text=True
+                            )
+                            if res.returncode == 0:
+                                base_branch = "main"
+                    except Exception:
+                        pass
+                # Update args.base_branch so auto-detected value is used downstream
+                args.base_branch = base_branch
+            elif base_branch == "HEAD":
                 try:
-                    legacy_db.rename(mapping_db)
+                    base_branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root, capture_output=True, text=True, check=True).stdout.strip()
                 except Exception:
-                    mapping_db = legacy_db
+                    base_branch = "master"
+            safe_branch = base_branch.replace('/', '_')
+            mapping_db = repo_root / ".delta" / f"test_mapping_{safe_branch}.db"
+            fallback_db = repo_root / ".delta" / "test_mapping.db"
+            legacy_db = repo_root / ".test_mapping.db"
+            
+            if not mapping_db.exists():
+                if fallback_db.exists():
+                    mapping_db = fallback_db
+                elif legacy_db.exists():
+                    fallback_db.parent.mkdir(parents=True, exist_ok=True)
+                    try:
+                        legacy_db.rename(fallback_db)
+                        mapping_db = fallback_db
+                    except Exception:
+                        mapping_db = legacy_db
             
         if not mapping_db.exists():
             print("No local mapping DB found. Initializing build...", file=sys.stderr)
             from .build_mapping_iterative import build_mapping_iteratively
             
-            # Use test_dir from config or default "tests"
-            cfg_local = Config.load()
-            default_test_dir = "tests"
-            if getattr(cfg_local.cloud, "test_dir", None):
-                default_test_dir = cfg_local.cloud.test_dir
+            # Use test_dir from args, config, or default "tests"
+            initial_test_dir = getattr(args, 'test_dir', None)
+            if not initial_test_dir:
+                initial_test_dir = getattr(cfg.cloud, "test_dir", None)
+            if not initial_test_dir:
+                initial_test_dir = "tests"
                 
             exit_code = build_mapping_iteratively(
                 repo_root,
                 mapping_db,
-                test_dir=default_test_dir,
+                test_dir=initial_test_dir,
                 verbose=args.verbose,
                 no_remote=getattr(args, 'local', False)
             )
@@ -311,13 +346,35 @@ def cmd_run(args):
     
     try:
         base_branch = args.base_branch
-        if base_branch == "master" and cfg.is_cloud_enabled and getattr(cfg.cloud, "branch", None):
-            base_branch = cfg.cloud.branch
+        # Note: branch auto-detection (master->main) was already done earlier
+        # during DB path construction
 
         # Find affected tests
         affected_tests = runner.find_affected_tests(
             base_branch
         )
+        
+        # Always run previously failed tests
+        lastfailed_file = repo_root / ".pytest_cache" / "v" / "cache" / "lastfailed"
+        if lastfailed_file.exists():
+            try:
+                import json as _json
+                with open(lastfailed_file) as _f:
+                    lastfailed_tests = _json.load(_f)
+                    failed_count = 0
+                    for test in lastfailed_tests.keys():
+                        # lastfailed sometimes contains file paths if the whole file failed collection
+                        affected_tests.add(test)
+                        if test not in runner.explanation:
+                            runner.explanation[test] = []
+                        runner.explanation[test].append({
+                            "reason": "Failed in previous run"
+                        })
+                        failed_count += 1
+                    if failed_count and args.verbose:
+                        print(f"Added {failed_count} previously failed test(s)", file=sys.stderr)
+            except Exception:
+                pass
         
         # Determine test_dir
         test_dir = args.test_dir
@@ -523,14 +580,25 @@ def cmd_build_mapping(args):
     if args.mapping_db:
         mapping_db = args.mapping_db
     else:
-        mapping_db = repo_root / ".delta" / "test_mapping.db"
+        try:
+            current_branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root, capture_output=True, text=True, check=True).stdout.strip()
+            if current_branch == "HEAD":
+                current_branch = "master"
+        except Exception:
+            current_branch = "master"
+        safe_branch = current_branch.replace('/', '_')
+        mapping_db = repo_root / ".delta" / f"test_mapping_{safe_branch}.db"
+        fallback_db = repo_root / ".delta" / "test_mapping.db"
         legacy_db = repo_root / ".test_mapping.db"
+        
+        # We don't read fallback here because we are building a NEW one, but we 
+        # ensure its parent exists.
+        mapping_db.parent.mkdir(parents=True, exist_ok=True)
         if not mapping_db.exists() and legacy_db.exists():
-            mapping_db.parent.mkdir(parents=True, exist_ok=True)
             try:
-                legacy_db.rename(mapping_db)
+                legacy_db.rename(fallback_db)
             except Exception:
-                mapping_db = legacy_db
+                pass
     
     # Load config to get default test_dir if it was saved during track
     from .config import Config
@@ -1000,7 +1068,7 @@ Examples:
     run_parser.add_argument(
         "--base-branch",
         default="master",
-        help="Base branch to compare against (default: master)"
+        help="Base branch to compare against (default: auto-detected from 'main' or 'master')"
     )
     run_parser.add_argument(
         "--coverage-file",
@@ -1185,7 +1253,7 @@ Examples:
     install_parser.add_argument(
         "--base-branch",
         default="master",
-        help="Base branch to compare against (default: master)"
+        help="Base branch to compare against (default: auto-detected from 'main' or 'master')"
     )
     install_parser.set_defaults(func=cmd_install)
     
@@ -1203,7 +1271,7 @@ Examples:
     install_pre_commit_parser.add_argument(
         "--base-branch",
         default="master",
-        help="Base branch to compare against (default: master)"
+        help="Base branch to compare against (default: auto-detected from 'main' or 'master')"
     )
     install_pre_commit_parser.set_defaults(func=cmd_install)
     

@@ -424,6 +424,9 @@ def find_unmapped_tests(
         # Strip parameters and normalize path
         test_without_params = strip_test_parameters(t)
         norm_key = normalize_test_path(test_without_params)
+        # Also strip conftest-collected subdirectories for better matching
+        # e.g. "tests/subdir/test_foo.py::test_bar" -> "test_foo.py::test_bar"
+        norm_key = norm_key.split("/")[-1] if "/" in norm_key and "::" in norm_key else norm_key
         # Keep track of all original test names (with params and prefix)
         normalized_to_originals[norm_key].append(t)
     
@@ -432,6 +435,8 @@ def find_unmapped_tests(
     for t in mapped_tests:
         test_without_params = strip_test_parameters(t)
         norm_key = normalize_test_path(test_without_params)
+        # Apply same normalization as above
+        norm_key = norm_key.split("/")[-1] if "/" in norm_key and "::" in norm_key else norm_key
         normalized_mapped.add(norm_key)
     
     # Find normalized names that aren't mapped
@@ -555,7 +560,7 @@ def run_test_chunk_with_mapping_update(
             print(f"    Database before import: {tests_before} tests", flush=True)
             
             # Import coverage
-            db.import_from_coverage(coverage_file, incremental=True)
+            db.import_from_coverage(coverage_file, incremental=True, repo_root=repo_root)
             
             # Get stats after import
             stats_after = db.get_stats()
@@ -663,7 +668,7 @@ def run_single_test_with_mapping_update(
             coverage_file = repo_root / "coverage" / ".coverage"
         if coverage_file.exists():
             with TestMappingDBV2(mapping_db_path) as db:
-                db.import_from_coverage(coverage_file, incremental=True)
+                db.import_from_coverage(coverage_file, incremental=True, repo_root=repo_root)
             if verbose:
                 print(f"       Mapping updated for: {test_name}")
         return True
@@ -960,22 +965,11 @@ def find_affected_tests(
     # Initialize git parser
     git_parser = GitDiffParser(repo_root)
     
-    # Verify that the target branch exists
-    if target_branch != "HEAD":
-        git_parser._resolve_base_branch(target_branch)
-    
-    # Get diff for staged changes
+    # Get diff using GitDiffParser which handles merge-base resolution properly
     try:
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--unified=0", target_branch],
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        diff_output = result.stdout
-    except subprocess.CalledProcessError as e:
-        print(f"Error getting staged diff: {e.stderr}", file=sys.stderr)
+        diff_output, merge_base = git_parser.get_diff(target_branch)
+    except (ValueError, RuntimeError) as e:
+        print(f"Error getting diff: {e}", file=sys.stderr)
         return set()
     
     # Parse diff
@@ -1110,10 +1104,17 @@ def run_tests_with_coverage(
             test_files.add(path)
     
     # Build pytest command
+    # Auto-detect coverage source (check for common source dirs, default to no --cov= filter)
+    # Users can override with pytest_args like --cov=my_package
+    cov_source = []
+    for candidate in ["src", "app", "lib"]:
+        if (repo_root / candidate).exists():
+            cov_source = [f"--cov={candidate}"]
+            break
     cmd = [
         sys.executable, "-m", "pytest",
         "-p", "delta.pytest_plugin",
-        "--cov=src",
+    ] + cov_source + [
         "--cov-context=test",
         "--cov-append",  # Append to existing coverage
         "--cov-report=",  # No report output (we'll combine later)
@@ -1125,12 +1126,14 @@ def run_tests_with_coverage(
         cmd.extend(pytest_args)
     
     # Add test files and node IDs
+    # Combine test files and node IDs into a list for the select file
+    all_test_selectors = list(test_files | test_node_ids) or list(test_paths)
     import json
     delta_dir = repo_root / ".delta"
     delta_dir.mkdir(parents=True, exist_ok=True)
     select_file = delta_dir / "xdist_select.json"
     with open(select_file, "w") as f:
-        json.dump(all_tests, f)
+        json.dump(all_test_selectors, f)
     cmd.extend(["--delta-select-file", str(select_file)])
     
     if verbose:

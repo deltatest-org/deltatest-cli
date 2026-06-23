@@ -74,7 +74,7 @@ def update_mapping(
         
         # Import from coverage
         print("\nImporting coverage data...")
-        num_mappings = db.import_from_coverage(coverage_file, incremental=incremental)
+        num_mappings = db.import_from_coverage(coverage_file, incremental=incremental, repo_root=repo_root)
         
         # Get stats
         stats = db.get_stats()

@@ -62,7 +62,7 @@ class GitDiffParser:
         except subprocess.CalledProcessError:
             raise ValueError(f"Target branch '{base_branch}' does not exist in this repository.")
 
-    def get_diff(self, base_branch: str = "master") -> str:
+    def get_diff(self, base_branch: str = "master") -> tuple[str, str]:
         """
         Get git diff output comparing current HEAD to base branch.
         
@@ -70,12 +70,13 @@ class GitDiffParser:
             base_branch: Branch to compare against
             
         Returns:
-            Raw diff output
+            Tuple of (Raw diff output, merge_base_sha or branch_name)
         """
         try:
             if base_branch == "HEAD":
                 # For pre-commit hooks, we usually want staged changes
                 cmd = ["git", "diff", "--cached", "--unified=0", "HEAD"]
+                merge_base = "HEAD"
             else:
                 resolved_base = self._resolve_base_branch(base_branch)
                 # Find merge base to handle branches properly
@@ -93,7 +94,7 @@ class GitDiffParser:
                 text=True,
                 check=True
             )
-            return result.stdout
+            return result.stdout, merge_base
         except subprocess.CalledProcessError as e:
             raise RuntimeError(f"Failed to get git diff: {e.stderr}")
     

@@ -2,7 +2,7 @@
 
 import sqlite3
 from pathlib import Path
-from typing import Dict, Set
+from typing import Dict, Set, Optional
 from dataclasses import dataclass, field
 
 
@@ -17,14 +17,16 @@ class CoverageData:
 class CoverageMapper:
     """Map code coverage to test cases using .coverage database."""
     
-    def __init__(self, coverage_file: Path = None):
+    def __init__(self, coverage_file: Path = None, repo_root: Optional[Path] = None):
         """
         Initialize mapper with coverage database.
         
         Args:
             coverage_file: Path to .coverage file (SQLite database)
+            repo_root: Repository root directory (for path normalization)
         """
         self.coverage_file = coverage_file or Path(".coverage")
+        self.repo_root = repo_root
         self.coverage_data: Dict[str, CoverageData] = {}
         self._loaded = False
         
@@ -95,7 +97,7 @@ class CoverageMapper:
                 file_path = files[file_id]
                 
                 # Normalize file path
-                file_path = self._normalize_path(file_path)
+                file_path = self._normalize_path(file_path, self.repo_root)
                 
                 if file_path not in self.coverage_data:
                     self.coverage_data[file_path] = CoverageData(file_path=file_path)
@@ -137,7 +139,7 @@ class CoverageMapper:
                 file_path = files[file_id]
                 
                 # Normalize file path
-                file_path = self._normalize_path(file_path)
+                file_path = self._normalize_path(file_path, self.repo_root)
                 
                 if file_path not in self.coverage_data:
                     self.coverage_data[file_path] = CoverageData(file_path=file_path)
@@ -246,17 +248,30 @@ class CoverageMapper:
         return tests
     
     @staticmethod
-    def _normalize_path(path: str) -> str:
+    def _normalize_path(path: str, repo_root: Optional[Path] = None) -> str:
         """
         Normalize file path for comparison.
         
         Removes common prefixes and standardizes separators.
+        
+        Args:
+            path: File path to normalize
+            repo_root: Repository root to use for making paths relative
         """
         # Convert to forward slashes
         path = path.replace('\\', '/')
         
+        # Try to make relative to repo_root if provided (preferred)
+        if repo_root:
+            try:
+                repo_root_str = str(repo_root.resolve()).replace('\\', '/')
+                if path.startswith(repo_root_str):
+                    return Path(path).relative_to(repo_root.resolve()).as_posix()
+            except Exception:
+                pass
+        
         import os
-        # Try to make relative to current directory if absolute
+        # Fallback to os.getcwd()
         try:
             cwd = os.getcwd().replace('\\', '/')
             if path.startswith(cwd):

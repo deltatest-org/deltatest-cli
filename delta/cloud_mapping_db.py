@@ -48,7 +48,7 @@ class CloudMappingDB:
 
     # ── Query (called by pre_commit_hook during commit) ────────────────────────
 
-    def find_tests_for_changes(self, changes: List[Dict], branch: Optional[str] = None) -> tuple[Set[str], List[str]]:
+    def find_tests_for_changes(self, changes: List[Dict], branch: Optional[str] = None, commit_sha: Optional[str] = None) -> tuple[Set[str], List[str]]:
         """
         Query the cloud API for affected tests.
 
@@ -61,6 +61,7 @@ class CloudMappingDB:
         """
         payload = {
             "branch": branch or self._branch,
+            "commit_sha": commit_sha,
             "changes": changes,
         }
         try:
@@ -89,13 +90,21 @@ class CloudMappingDB:
         self.explanation = data.get("explanation", {})
         return set(data["affected_tests"]), data.get("unmapped_files", [])
 
-    def find_tests_for_file_lines(self, file_path: str, line_numbers: Set[int]) -> Set[str]:
+    def find_tests_for_file_lines(self, file_path: str, line_numbers: Set[int], branch: Optional[str] = None, commit_sha: Optional[str] = None) -> Set[str]:
         """
         Single-file wrapper — matches TestMappingDBV2 interface used by pre_commit_hook.
+        
+        Args:
+            file_path: Path to the source file
+            line_numbers: Set of changed line numbers
+            branch: Optional branch to query mapping for
+            commit_sha: Optional commit sha for merge-base lookup
         """
-        tests, _ = self.find_tests_for_changes([
-            {"file": file_path, "lines": sorted(line_numbers)}
-        ])
+        tests, _ = self.find_tests_for_changes(
+            [{"file": file_path, "lines": sorted(line_numbers)}],
+            branch=branch,
+            commit_sha=commit_sha,
+        )
         return tests
 
     # ── Push (called after test run to update mappings) ────────────────────────
