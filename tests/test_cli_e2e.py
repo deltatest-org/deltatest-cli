@@ -172,7 +172,13 @@ def test_delta_chunking_and_fail_fast(dummy_repo):
     from delta.cli import DeltaRunner
     runner = DeltaRunner(dummy_repo, verbose=True)
     
-    dummy_tests = {f"tests/test_math.py::test_dummy_{i}" for i in range(1005)}
+    # Add an actual failing test that sorts into the first chunk
+    test_math = dummy_repo / "tests" / "test_math.py"
+    with open(test_math, "a") as f:
+        f.write("\n\ndef test_a_fail():\n    assert False\n")
+        
+    dummy_tests = {f"tests/test_math.py::test_dummy_{i}" for i in range(1004)}
+    dummy_tests.add("tests/test_math.py::test_a_fail")
     
     import io
     from unittest.mock import patch

@@ -1308,7 +1308,7 @@ def main():
         if use_cloud:
             # Cloud path: send all changed files+lines in one API call
             git_parser = GitDiffParser(repo_root)
-            diff_output = git_parser.get_diff(args.target_branch)
+            diff_output, _ = git_parser.get_diff(args.target_branch)
             all_changes = git_parser.parse_diff(diff_output)
             py_changes = git_parser.filter_python_files(all_changes)
 

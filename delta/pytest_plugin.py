@@ -38,6 +38,10 @@ def pytest_addoption(parser):
 
 def pytest_collection_modifyitems(session, config, items):
     """Filter collected tests if --delta or --delta-select-file is enabled."""
+    import os
+    if os.environ.get("DELTA_DISABLE") == "1":
+        return
+        
     select_file = config.getoption("--delta-select-file")
     if not config.getoption("--delta") and not select_file:
         return

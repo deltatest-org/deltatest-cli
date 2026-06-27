@@ -209,11 +209,20 @@ class DeltaRunner:
             final_returncode = 0
             fail_fast = pytest_args and any(arg == '-x' or arg.startswith('--maxfail') for arg in pytest_args)
             
+            import json
+            delta_dir = self.repo_root / ".delta"
+            delta_dir.mkdir(parents=True, exist_ok=True)
+            
             for i in range(0, len(test_list), chunk_size):
                 chunk = test_list[i:i + chunk_size]
                 chunk_num = (i // chunk_size) + 1
                 print(f"\nRunning chunk {chunk_num}/{total_chunks} ({len(chunk)} tests)...", flush=True)
-                cmd = base_cmd + chunk
+                
+                chunk_file = delta_dir / f"chunk_{chunk_num}.json"
+                with open(chunk_file, "w") as f:
+                    json.dump(chunk, f)
+                
+                cmd = base_cmd + ["--delta-select-file", str(chunk_file)]
                 result = subprocess.run(cmd, cwd=self.repo_root)
 
                 # Auto-update the local database with the new coverage after each chunk
@@ -296,7 +305,13 @@ def cmd_run(args):
                     base_branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root, capture_output=True, text=True, check=True).stdout.strip()
                 except Exception:
                     base_branch = "master"
-            safe_branch = base_branch.replace('/', '_')
+            try:
+                current_branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root, capture_output=True, text=True, check=True).stdout.strip()
+                if current_branch == "HEAD":
+                    current_branch = "master"
+            except Exception:
+                current_branch = "master"
+            safe_branch = current_branch.replace('/', '_')
             mapping_db = repo_root / ".delta" / f"test_mapping_{safe_branch}.db"
             fallback_db = repo_root / ".delta" / "test_mapping.db"
             legacy_db = repo_root / ".test_mapping.db"
@@ -425,6 +440,18 @@ def cmd_run(args):
                 for t in to_bypass:
                     runner.explanation.pop(t, None)
                 print(f"Skipping {skipped_count} known-skipped test(s)")
+
+        # Filter out tests that do not exist on disk (e.g. deleted or moved test files)
+        existing_affected_tests = set()
+        for test in affected_tests:
+            file_part = test.split("::")[0]
+            if (repo_root / file_part).exists():
+                existing_affected_tests.add(test)
+            else:
+                runner.explanation.pop(test, None)
+                if args.verbose:
+                    print(f"Filtering out non-existent test file: {file_part} (from {test})", file=sys.stderr)
+        affected_tests = existing_affected_tests
 
         # Print explanation if requested
         if getattr(args, 'explain', False):
@@ -1153,6 +1180,11 @@ Examples:
         type=Path,
         default=Path.cwd(),
         help="Repository root directory (default: current directory)"
+    )
+    build_parser.add_argument(
+        "--base-branch",
+        default=None,
+        help="Base branch to target (default: active git branch)"
     )
     build_parser.add_argument(
         "--local", "--no-remote",

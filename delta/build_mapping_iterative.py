@@ -77,10 +77,15 @@ def run_test_chunk_with_mapping(
     
     print(f"   Running: {' '.join(cmd[:6])} ... {len(test_names)} tests", flush=True)
     
+    import os
+    env = os.environ.copy()
+    env["DELTA_DISABLE"] = "1"
+    
     result = subprocess.run(
         cmd,
         cwd=repo_root,
-        text=True
+        text=True,
+        env=env
     )
     
     # Parse pytest exit code

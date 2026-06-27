@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="deltatest-cli",
-    version="0.4.31",
+    version="0.4.36",
     description="Run only the tests affected by your code changes.",
     long_description=long_description,
     long_description_content_type="text/markdown",

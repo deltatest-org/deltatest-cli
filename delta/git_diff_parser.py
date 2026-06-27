@@ -210,7 +210,7 @@ def main():
     parser = GitDiffParser(repo_root)
     
     try:
-        diff_output = parser.get_diff(base_branch)
+        diff_output, _ = parser.get_diff(base_branch)
         changes = parser.parse_diff(diff_output)
         python_changes = parser.filter_python_files(changes)
         

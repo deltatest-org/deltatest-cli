@@ -75,7 +75,14 @@ class CoverageMapper:
         
         # Get file IDs and paths
         cursor.execute("SELECT id, path FROM file")
-        files = {file_id: path for file_id, path in cursor.fetchall()}
+        files = {}
+        resolved_root = self.repo_root.resolve() if self.repo_root else None
+        for file_id, path in cursor.fetchall():
+            norm_path = path.replace('\\', '/')
+            # Skip third-party packages, python stdlib, and virtualenv files to optimize loading
+            if any(p in norm_path for p in ('site-packages', 'Python.framework', '/lib/python', '.venv', '/usr/local/lib')):
+                continue
+            files[file_id] = self._normalize_path(path, resolved_root)
         
         # Get context IDs and names
         cursor.execute("SELECT id, context FROM context")
@@ -95,9 +102,6 @@ class CoverageMapper:
                     continue
                     
                 file_path = files[file_id]
-                
-                # Normalize file path
-                file_path = self._normalize_path(file_path, self.repo_root)
                 
                 if file_path not in self.coverage_data:
                     self.coverage_data[file_path] = CoverageData(file_path=file_path)
@@ -137,9 +141,6 @@ class CoverageMapper:
                     continue
                     
                 file_path = files[file_id]
-                
-                # Normalize file path
-                file_path = self._normalize_path(file_path, self.repo_root)
                 
                 if file_path not in self.coverage_data:
                     self.coverage_data[file_path] = CoverageData(file_path=file_path)

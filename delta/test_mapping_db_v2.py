@@ -183,12 +183,22 @@ class TestMappingDBV2:
                     test_file_ranges[key].add_range(line_num, line_num)
         
         if incremental:
-            # Merge with existing ranges in bulk to avoid performance bottleneck
-            cursor.execute("SELECT test_name, file_path, ranges FROM test_coverage_ranges")
-            existing_mappings = {
-                (row['test_name'], row['file_path']): row['ranges']
-                for row in cursor.fetchall()
-            }
+            # Query only the mappings we need to update in batches
+            existing_mappings = {}
+            keys = list(test_file_ranges.keys())
+            if keys:
+                for i in range(0, len(keys), 500):
+                    batch = keys[i:i+500]
+                    conditions = " OR ".join(["(test_name = ? AND file_path = ?)"] * len(batch))
+                    query = f"SELECT test_name, file_path, ranges FROM test_coverage_ranges WHERE {conditions}"
+                    
+                    params = []
+                    for t_name, f_path in batch:
+                        params.extend([t_name, f_path])
+                        
+                    cursor.execute(query, params)
+                    for row in cursor.fetchall():
+                        existing_mappings[(row['test_name'], row['file_path'])] = row['ranges']
             
             records = []
             for (test_name, file_path), new_ranges in test_file_ranges.items():
@@ -324,7 +334,7 @@ class TestMappingDBV2:
         cursor.execute("SELECT key, value FROM metadata")
         return {row['key']: row['value'] for row in cursor.fetchall()}
     
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self, full: bool = False) -> Dict[str, int]:
         """Get database statistics."""
         cursor = self.conn.cursor()
         
@@ -336,6 +346,17 @@ class TestMappingDBV2:
         
         cursor.execute("SELECT COUNT(*) FROM test_coverage_ranges")
         total_range_entries = cursor.fetchone()[0]
+        
+        if not full:
+            return {
+                'total_tests': total_tests,
+                'total_files': total_files,
+                'total_range_entries': total_range_entries,
+                'total_lines_covered': 0,
+                'total_ranges': 0,
+                'compression_ratio': 0,
+                'total_mappings': total_range_entries,
+            }
         
         # Calculate actual line coverage and compression ratio
         cursor.execute("SELECT ranges FROM test_coverage_ranges")
