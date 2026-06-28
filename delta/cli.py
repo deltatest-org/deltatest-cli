@@ -264,6 +264,11 @@ def cmd_run(args):
         print(f"Error: Repository not found: {repo_root}", file=sys.stderr)
         sys.exit(1)
     
+    if getattr(args, 'subprocess', False):
+        import os
+        coveragerc_path = repo_root / ".coveragerc"
+        os.environ["COVERAGE_PROCESS_START"] = str(coveragerc_path)
+    
     # ── Mapping source detection ───────────────────────────────────────────
     mapping_db_obj = None
     
@@ -647,7 +652,8 @@ def cmd_build_mapping(args):
         test_dir=final_test_dir,
         verbose=args.verbose,
         pytest_args=pytest_args,
-        no_remote=getattr(args, 'local', False)
+        no_remote=getattr(args, 'local', False),
+        subprocess_mode=getattr(args, 'subprocess', False)
     ))
 
 
@@ -1118,6 +1124,11 @@ Examples:
         help="Directory containing tests (default: read from config or tests/)"
     )
     run_parser.add_argument(
+        "--subprocess",
+        action="store_true",
+        help="Enable subprocess coverage tracking"
+    )
+    run_parser.add_argument(
         "-v", "--verbose",
         action="store_true",
         help="Show detailed output"
@@ -1200,6 +1211,11 @@ Examples:
         "--test-dir",
         default=None,
         help="Directory containing tests (default: from config or current directory)"
+    )
+    build_parser.add_argument(
+        "--subprocess",
+        action="store_true",
+        help="Enable subprocess coverage tracking"
     )
     build_parser.add_argument(
         "-v", "--verbose",
