@@ -23,7 +23,7 @@ setup(
             "delta=delta.cli:main",
         ],
         "pytest11": [
-            "delta = delta.pytest_plugin",
+            "delta.pytest_plugin = delta.pytest_plugin",
         ],
     },
     python_requires=">=3.8",

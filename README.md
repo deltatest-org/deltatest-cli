@@ -4,19 +4,19 @@
 
 Delta integrates with your git workflow as a pre-commit hook, running only tests that cover the code you've changed. This dramatically speeds up your development cycle while ensuring quality.
 
-## 🎯 Key Features
+## Key Features
 
-- **🚀 Fast**: Run only affected tests, not the entire suite
-- **🔒 Safe**: Blocks commits if affected tests fail
-- **📊 Intelligent**: Uses SQLite-based test-to-code mapping for instant lookups
-- **🔄 Incremental Coverage**: Combines coverage from test runs
-- **✨ New Test Detection**: Always runs newly added tests
-- **🧠 Auto-Discovery**: Detects unmapped tests and builds mapping automatically
-- **🎣 Pre-commit Hook**: Automatic integration with git workflow
-- **🔧 Status Check**: Instantly inspect database mapping stats (both local and cloud via [deltatest.dev](https://deltatest.dev))
-- **☁️ Delta Cloud Sync**: Share test mappings across CI/CD and teams automatically (Powered by [deltatest.dev](https://deltatest.dev))
+- **Fast**: Run only affected tests, not the entire suite
+- **Safe**: Blocks commits if affected tests fail
+- **Intelligent**: Uses SQLite-based test-to-code mapping for instant lookups
+- **Incremental Coverage**: Combines coverage from test runs
+- **New Test Detection**: Always runs newly added tests
+- **Auto-Discovery**: Detects unmapped tests and builds mapping automatically
+- **Pre-commit Hook**: Automatic integration with git workflow
+- **Status Check**: Instantly inspect database mapping stats (both local and cloud via [deltatest.dev](https://deltatest.dev))
+- **Delta Cloud Sync**: Share test mappings across CI/CD and teams automatically (Powered by [deltatest.dev](https://deltatest.dev))
 
-## ⚡ Quick Start (Pre-Commit Hook)
+## Quick Start (Pre-Commit Hook)
 
 ```bash
 cd ~/workspace/myproject
@@ -50,8 +50,8 @@ Run unmapped tests all-at-once (build mapping)
          ↓
 Run mapped affected tests with coverage
          ↓
-Tests pass? → Combine coverage → Allow commit ✅
-Tests fail? → Block commit ❌
+Tests pass? → Combine coverage → Allow commit
+Tests fail? → Block commit
 ```
 
 ### Auto-Discovery of Unmapped Tests
@@ -76,10 +76,10 @@ The pre-commit hook automatically detects tests that exist in your codebase but 
 ```bash
 $ git commit -m "Fix bug in auth.py"
 
-📝 Found 1 changed Python file
-📊 Mapping DB: 1234 tests, 567 files, 45678 mappings
-🔍 Collected 1250 total tests from pytest
-⚠️  Found 16 unmapped test(s)
+Found 1 changed Python file
+Mapping DB: 1234 tests, 567 files, 45678 mappings
+Collected 1250 total tests from pytest
+Found 16 unmapped test(s)
 
 ================================================================================
 Building coverage mapping for 16 unmapped test(s)
@@ -113,7 +113,7 @@ CREATE TABLE test_coverage_ranges (
 
 Fast lookups: "Which tests cover file X, line Y?"
 
-## 🔧 Installation
+## Installation
 
 ### Prerequisites
 
@@ -148,7 +148,7 @@ delta install
 
 Done! Now every commit will run only affected tests.
 
-## 📖 Usage
+## Usage
 
 ### Pre-Commit Hook (Automatic)
 
@@ -189,7 +189,7 @@ You can inspect the status and statistics of the local mapping database and the 
 delta status
 ```
 
-## 🎛️ Commands
+## Commands
 
 ### `delta run`
 
@@ -237,7 +237,7 @@ Options:
   -v, --verbose          Detailed output
 ```
 
-## 🚫 Bypassing the Hook
+## Bypassing the Hook
 
 For urgent commits:
 
@@ -245,6 +245,6 @@ For urgent commits:
 git commit --no-verify -m "Urgent hotfix"
 ```
 
-## 🤝 Contributing
+## Contributing
 
 Delta is an open-source developer productivity tool.

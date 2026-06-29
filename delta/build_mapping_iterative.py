@@ -122,7 +122,7 @@ def run_test_chunk_with_mapping(
             pass  # Skip invalid files
     
     # Try to combine if needed
-    if valid_chunks and not coverage_file.exists():
+    if valid_chunks:
         combine_cmd = [sys.executable, "-m", "coverage", "combine"]
         subprocess.run(
             combine_cmd,
@@ -173,7 +173,8 @@ def build_mapping_iteratively(
     test_dir: str = "tests",
     verbose: bool = False,
     pytest_args: list = None,
-    no_remote: bool = False
+    no_remote: bool = False,
+    subprocess_mode: bool = False
 ):
     """
     Build mapping database by running unmapped tests.
@@ -186,8 +187,77 @@ def build_mapping_iteratively(
         test_dir: Test directory to collect from (default: "unit_tests")
         verbose: Print verbose output
         pytest_args: Additional pytest arguments
+        subprocess_mode: Enable subprocess coverage tracking
     """
     repo_root = repo_root.resolve()
+    
+    if subprocess_mode:
+        import sysconfig
+        import os
+        print("Enabling subprocess coverage tracking...")
+        # 1. Write sitecustomize.py bootstrap hook
+        try:
+            site_packages = sysconfig.get_paths().get("purelib")
+            if site_packages:
+                sp_path = Path(site_packages)
+                sitecustomize_file = sp_path / "sitecustomize.py"
+                hook_code = (
+                    "\n# site-packages/sitecustomize.py (written by delta build-mapping --subprocess)\n"
+                    "import coverage\n"
+                    "coverage.process_startup()\n"
+                )
+                if sitecustomize_file.exists():
+                    content = sitecustomize_file.read_text()
+                    if "coverage.process_startup()" not in content:
+                        sitecustomize_file.write_text(content + hook_code)
+                        print(f"   Appended startup hook to {sitecustomize_file}")
+                else:
+                    sitecustomize_file.write_text(hook_code)
+                    print(f"   Created startup hook at {sitecustomize_file}")
+        except Exception as e:
+            print(f"   Warning: Could not install sitecustomize.py hook: {e}")
+
+        # 2. Write/update .coveragerc
+        try:
+            coveragerc_file = repo_root / ".coveragerc"
+            import configparser
+            config_parser = configparser.ConfigParser()
+            if coveragerc_file.exists():
+                config_parser.read(coveragerc_file)
+            if not config_parser.has_section("run"):
+                config_parser.add_section("run")
+            config_parser.set("run", "parallel", "True")
+            config_parser.set("run", "concurrency", "multiprocessing")
+            with open(coveragerc_file, "w") as f:
+                config_parser.write(f)
+            print(f"   Updated {coveragerc_file} with parallel=True and concurrency=multiprocessing")
+        except Exception as e:
+            print(f"   Warning: Could not update .coveragerc: {e}")
+
+        # 3. Write env variable to .delta/.env
+        try:
+            delta_dir = repo_root / ".delta"
+            delta_dir.mkdir(parents=True, exist_ok=True)
+            env_file = delta_dir / ".env"
+            coveragerc_path = repo_root / ".coveragerc"
+            
+            existing_vars = {}
+            if env_file.exists():
+                for line in env_file.read_text().splitlines():
+                    if "=" in line and not line.strip().startswith("#"):
+                        k, v = line.split("=", 1)
+                        existing_vars[k.strip()] = v.strip()
+            
+            existing_vars["COVERAGE_PROCESS_START"] = f'"{coveragerc_path}"'
+            
+            with open(env_file, "w") as f:
+                for k, v in existing_vars.items():
+                    f.write(f"{k}={v}\n")
+            print(f"   Wrote COVERAGE_PROCESS_START to {env_file}")
+            
+            os.environ["COVERAGE_PROCESS_START"] = str(coveragerc_path)
+        except Exception as e:
+            print(f"   Warning: Could not write env file: {e}")
     
     print("Test Mapping Builder")
     print("=" * 80)

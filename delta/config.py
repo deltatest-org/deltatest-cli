@@ -35,6 +35,33 @@ class Config:
     @classmethod
     def load(cls) -> "Config":
         """Load config from env variables and fallback to ~/.delta/config.toml."""
+        # Helper to find repo root
+        def find_repo_root() -> Optional[Path]:
+            curr = Path.cwd()
+            for parent in [curr] + list(curr.parents):
+                if (parent / ".git").exists() or (parent / ".delta").exists():
+                    return parent
+            return None
+
+        # Load local repo env file if it exists
+        repo_root = find_repo_root()
+        if repo_root:
+            env_file = repo_root / ".delta" / ".env"
+            if env_file.exists():
+                try:
+                    for line in env_file.read_text().splitlines():
+                        line = line.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        if line.startswith("export "):
+                            line = line[7:].strip()
+                        if "=" in line:
+                            k, v = line.split("=", 1)
+                            v = v.strip().strip('"').strip("'")
+                            os.environ[k.strip()] = v
+                except Exception:
+                    pass
+
         env_api_key = os.environ.get("DELTA_API_KEY")
         env_repo_id = os.environ.get("DELTA_REPO_ID")
         env_api_url = os.environ.get("DELTA_API_URL")

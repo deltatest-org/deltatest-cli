@@ -81,7 +81,7 @@ class GitDiffParser:
                 resolved_base = self._resolve_base_branch(base_branch)
                 # Find merge base to handle branches properly
                 mb_cmd = ["git", "merge-base", resolved_base, "HEAD"]
-                mb_result = subprocess.run(mb_cmd, cwd=self.repo_root, capture_output=True, text=True, check=True)
+                mb_result = subprocess.run(mb_cmd, cwd=self.repo_root, capture_output=True, text=True, encoding="utf-8", check=True)
                 merge_base = mb_result.stdout.strip()
                 
                 # Diff from merge base to working tree (includes uncommitted changes)
@@ -92,11 +92,12 @@ class GitDiffParser:
                 cwd=self.repo_root,
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 check=True
             )
             return result.stdout, merge_base
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to get git diff: {e.stderr}")
+            raise RuntimeError(f"Failed to get git diff: {e.stderr or e}")
     
     def parse_diff(self, diff_output: str) -> Dict[str, FileChange]:
         """

@@ -279,6 +279,14 @@ def cmd_run(args):
     if use_cloud:
         if args.verbose:
             print(f"Mapping Service: Delta Cloud (repo {cfg.cloud.repo_id[:8]}...)", file=sys.stderr)
+        # When cloud mode is active the local branch auto-detection block is
+        # skipped, so args.base_branch stays as the argparse default ('master').
+        # Override it with the branch stored in the config (set during `delta track`)
+        # unless the user explicitly passed --base-branch on the command line.
+        if getattr(args, 'base_branch', 'master') == 'master':
+            config_branch = getattr(cfg.cloud, 'branch', None)
+            if config_branch:
+                args.base_branch = config_branch
         mapping_db_obj = CloudMappingDB(cfg.cloud)
     else:
         mapping_db = args.mapping_db if hasattr(args, 'mapping_db') and args.mapping_db else None
