@@ -4,7 +4,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="pytest-delta",
+    name="pytest-deltatest",
     version="0.4.38",
     description="Run only the tests affected by your code changes.",
     long_description=long_description,
