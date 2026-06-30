@@ -65,7 +65,7 @@ def run_test_chunk_with_mapping(
     if pytest_args:
         cmd.extend(pytest_args)
     
-    if len(test_names) > 1000:
+    if len(test_names) > 50:
         delta_dir = repo_root / ".delta"
         delta_dir.mkdir(parents=True, exist_ok=True)
         select_file = delta_dir / "xdist_select.json"

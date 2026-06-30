@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="pytest-deltatest",
-    version="0.4.38",
+    version="0.4.39",
     description="Run only the tests affected by your code changes.",
     long_description=long_description,
     long_description_content_type="text/markdown",
